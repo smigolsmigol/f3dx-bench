@@ -1,0 +1,89 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/smigolsmigol/f3dx-bench/schemas/trace_beacon.schema.json",
+  "title": "TraceBeacon",
+  "description": "One row per LLM request. Anonymized. NO prompt content, NO response content, NO API keys, NO headers. Wire size ~200 bytes.",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "ts",
+    "install_id",
+    "install_hmac",
+    "model",
+    "provider",
+    "status_code",
+    "latency_ms_total",
+    "input_tokens",
+    "output_tokens"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": {
+      "type": "string",
+      "const": "v1",
+      "description": "Pinned to v1 for this release. Bumps with breaking shape changes."
+    },
+    "ts": {
+      "type": "string",
+      "format": "date-time",
+      "description": "ISO 8601 UTC timestamp at request start."
+    },
+    "install_id": {
+      "type": "string",
+      "format": "uuid",
+      "description": "Per-install UUID generated on first run. Stable for the install's lifetime. Not joinable across installs."
+    },
+    "install_hmac": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$",
+      "description": "HMAC-SHA256 over the canonical beacon JSON (excluding this field), keyed by the install's locally-stored secret. Worker verifies against KV-stored (install_id -> secret) row."
+    },
+    "model": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128,
+      "description": "Vendor-reported model identifier (e.g. 'gpt-4o', 'claude-haiku-4-5')."
+    },
+    "provider": {
+      "type": "string",
+      "enum": ["openai", "anthropic", "groq", "together", "fireworks", "deepseek", "openrouter", "mistral", "xai", "vllm", "llmkit", "other"],
+      "description": "Provider classification. 'other' for self-hosted / unrecognized."
+    },
+    "region": {
+      "type": "string",
+      "maxLength": 32,
+      "description": "Optional region code (e.g. 'us-east-1', 'eu-west-1'). Empty when unknown."
+    },
+    "status_code": {
+      "type": "integer",
+      "minimum": 100,
+      "maximum": 599,
+      "description": "HTTP status from the provider response."
+    },
+    "latency_ms_to_first_token": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "Time from request send to first SSE token. Null/missing for non-streaming."
+    },
+    "latency_ms_total": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "Total request wall-clock in milliseconds."
+    },
+    "input_tokens": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "Provider-reported prompt tokens."
+    },
+    "output_tokens": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "Provider-reported completion tokens."
+    },
+    "cost_usd_estimate": {
+      "type": "number",
+      "minimum": 0,
+      "description": "Optional client-side cost estimate. Computed from a shared price table; not authoritative."
+    }
+  }
+}

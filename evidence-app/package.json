@@ -1,0 +1,16 @@
+{
+  "name": "@f3d1/f3dx-bench-dashboard",
+  "version": "0.0.1",
+  "license": "MIT",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "evidence dev",
+    "build": "evidence build",
+    "sources": "evidence sources",
+    "preview": "evidence preview"
+  },
+  "devDependencies": {
+    "@evidence-dev/evidence": "^31.0.0"
+  }
+}

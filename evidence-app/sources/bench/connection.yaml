@@ -1,0 +1,14 @@
+# DuckDB source for the f3dx-bench dashboard.
+#
+# BEFORE DEPLOY: replace ${R2_PUBLIC_URL} with the public read-only URL of
+# your R2 bucket (e.g. https://pub-abc123.r2.dev/f3dx-bench-beacons).
+# Cloudflare R2 supports public buckets with no egress charge for the
+# Worker-side write + duckdb-wasm-side read.
+type: duckdb
+options:
+  filename: ":memory:"
+  initSql: |
+    INSTALL httpfs;
+    LOAD httpfs;
+    CREATE OR REPLACE VIEW beacons AS
+    SELECT * FROM read_parquet('${R2_PUBLIC_URL}/parquet/**/*.parquet');

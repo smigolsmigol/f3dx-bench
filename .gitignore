@@ -1,0 +1,26 @@
+node_modules/
+.wrangler/
+.evidence/
+build/
+dist/
+*.parquet
+*.ndjson
+
+# secrets
+.env
+.env.*
+.dev.vars
+.dev.keys
+*.pem
+*.key
+*.p12
+*.pfx
+credentials.json
+*_token
+*_secret
+.npmrc
+.pypirc
+
+# local agent state
+.claude/
+.mcp.json

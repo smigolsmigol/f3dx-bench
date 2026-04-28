@@ -1,0 +1,9 @@
+{
+  "deployment": {
+    "basePath": ""
+  },
+  "appmeta": {
+    "title": "f3dx-bench",
+    "description": "Real-prod-traffic LLM benchmark dashboard"
+  }
+}

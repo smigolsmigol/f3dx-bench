@@ -1,0 +1,25 @@
+{
+  "name": "@f3d1/f3dx-bench-worker",
+  "version": "0.0.1",
+  "license": "MIT",
+  "private": true,
+  "type": "module",
+  "main": "./src/worker.ts",
+  "scripts": {
+    "dev": "wrangler dev --local",
+    "deploy": "wrangler deploy",
+    "build": "wrangler deploy --dry-run",
+    "typecheck": "tsc --noEmit",
+    "lint": "biome check src",
+    "format": "biome format --write src"
+  },
+  "dependencies": {
+    "hono": "^4.12.10"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "^2.4.2",
+    "@cloudflare/workers-types": "^4.20260226.1",
+    "typescript": "^5.7.0",
+    "wrangler": "^4.71.0"
+  }
+}
