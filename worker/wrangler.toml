@@ -15,7 +15,7 @@ bucket_name = "f3dx-bench-beacons"
 
 [[kv_namespaces]]
 binding = "INSTALL_KV"
-id = "PLACEHOLDER_KV_NAMESPACE_ID"
+id = "b23c3f02ffe241a38f3a6365272b421a"
 
 # Daily NDJSON -> Parquet compaction. Will be added in v0.0.2.
 # [triggers]
