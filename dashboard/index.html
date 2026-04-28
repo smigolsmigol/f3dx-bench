@@ -1,0 +1,233 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>f3dx-bench - real prod LLM telemetry</title>
+<style>
+  :root {
+    --bg: #0b0d10;
+    --bg2: #11151a;
+    --fg: #e7ecf3;
+    --muted: #8a96a8;
+    --accent: #6ae3a8;
+    --accent2: #6ab8e3;
+    --warn: #e3a86a;
+    --err: #e36a6a;
+    --border: #1f2832;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; background: var(--bg); color: var(--fg); font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; line-height: 1.5; }
+  header { padding: 32px 48px 16px; border-bottom: 1px solid var(--border); }
+  header h1 { margin: 0 0 8px; font-size: 28px; font-weight: 600; }
+  header p { margin: 0; color: var(--muted); font-size: 14px; max-width: 800px; }
+  header a { color: var(--accent2); text-decoration: none; }
+  header a:hover { text-decoration: underline; }
+  main { padding: 24px 48px 64px; max-width: 1200px; margin: 0 auto; }
+  .cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 16px; margin: 24px 0; }
+  .card { background: var(--bg2); border: 1px solid var(--border); border-radius: 8px; padding: 20px; }
+  .card .label { color: var(--muted); font-size: 12px; text-transform: uppercase; letter-spacing: 0.05em; }
+  .card .value { font-size: 28px; font-weight: 600; margin-top: 8px; }
+  .card .sub { color: var(--muted); font-size: 12px; margin-top: 4px; }
+  section { background: var(--bg2); border: 1px solid var(--border); border-radius: 8px; padding: 20px; margin: 24px 0; }
+  section h2 { margin: 0 0 4px; font-size: 18px; font-weight: 600; }
+  section .sub { color: var(--muted); font-size: 13px; margin-bottom: 16px; }
+  .chart { width: 100%; min-height: 320px; }
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  th, td { text-align: left; padding: 8px 12px; border-bottom: 1px solid var(--border); }
+  th { color: var(--muted); font-weight: 500; font-size: 11px; text-transform: uppercase; letter-spacing: 0.05em; }
+  td.num { text-align: right; font-variant-numeric: tabular-nums; }
+  .footer { margin-top: 48px; padding-top: 16px; border-top: 1px solid var(--border); color: var(--muted); font-size: 12px; }
+  .footer a { color: var(--muted); }
+  #status { color: var(--muted); font-size: 13px; padding: 8px 12px; background: var(--bg2); border-radius: 4px; display: inline-block; }
+  #status.error { color: var(--err); }
+</style>
+</head>
+<body>
+<header>
+  <h1>f3dx-bench</h1>
+  <p>The first prod-traffic latency dashboard for LLMs. Real telemetry from <a href="https://github.com/smigolsmigol/f3dx">f3dx</a> + <a href="https://llmkit.sh">llmkit</a> users who opt in. No prompts, no responses, no API keys collected. <a href="https://github.com/smigolsmigol/f3dx-bench/blob/main/docs/privacy.md">privacy contract</a> | <a href="https://github.com/smigolsmigol/f3dx-bench">source</a></p>
+</header>
+
+<main>
+  <div id="status">Loading parquet from R2...</div>
+
+  <div class="cards" id="cards" style="display:none">
+    <div class="card"><div class="label">Beacons (total)</div><div class="value" id="card-total">-</div><div class="sub">opted-in installs</div></div>
+    <div class="card"><div class="label">Active installs</div><div class="value" id="card-installs">-</div><div class="sub">distinct in window</div></div>
+    <div class="card"><div class="label">Median latency</div><div class="value" id="card-p50">-</div><div class="sub">across all models</div></div>
+    <div class="card"><div class="label">Error rate</div><div class="value" id="card-err">-</div><div class="sub">non-2xx fraction</div></div>
+  </div>
+
+  <section id="latency-section" style="display:none">
+    <h2>Latency by model</h2>
+    <div class="sub">p50 / p95 / p99 wall-clock per request, last 30 days, successful requests only</div>
+    <div id="chart-latency" class="chart"></div>
+  </section>
+
+  <section id="errors-section" style="display:none">
+    <h2>Provider error rate</h2>
+    <div class="sub">non-2xx fraction by provider, last 30 days</div>
+    <div id="chart-errors" class="chart"></div>
+  </section>
+
+  <section id="cost-section" style="display:none">
+    <h2>Cost per 1k tokens</h2>
+    <div class="sub">client-reported cost estimate over input + output tokens, last 30 days</div>
+    <div id="chart-cost" class="chart"></div>
+  </section>
+
+  <section id="recent-section" style="display:none">
+    <h2>Recent beacons</h2>
+    <div class="sub">most recent 25 rows, anonymized</div>
+    <table id="recent-table"><thead><tr>
+      <th>ts</th><th>model</th><th>provider</th><th>region</th>
+      <th class="num">status</th><th class="num">latency_ms</th><th class="num">in</th><th class="num">out</th><th class="num">cost_usd</th>
+    </tr></thead><tbody></tbody></table>
+  </section>
+
+  <div class="footer">
+    Updates whenever the compaction job rewrites <code>parquet/latest.parquet</code>. Powered by duckdb-wasm + Plotly, served from a single static HTML file. No server, no JS framework, no build step.
+  </div>
+</main>
+
+<script type="module">
+import * as duckdb from 'https://cdn.jsdelivr.net/npm/@duckdb/duckdb-wasm@1.29.0/+esm';
+import Plotly from 'https://cdn.jsdelivr.net/npm/plotly.js-dist-min@2.35.2/+esm';
+
+const PARQUET_URL = 'https://pub-13d8fca488d741aa901d2dae08ba80bf.r2.dev/parquet/latest.parquet';
+const status = document.getElementById('status');
+const showError = (msg) => { status.textContent = 'load failed: ' + msg; status.classList.add('error'); };
+
+const PLOT_LAYOUT = {
+  paper_bgcolor: '#11151a',
+  plot_bgcolor: '#11151a',
+  font: { color: '#e7ecf3', family: 'system-ui' },
+  margin: { l: 60, r: 24, t: 24, b: 48 },
+  xaxis: { gridcolor: '#1f2832', zerolinecolor: '#1f2832' },
+  yaxis: { gridcolor: '#1f2832', zerolinecolor: '#1f2832' },
+};
+const PLOT_CFG = { displayModeBar: false, responsive: true };
+
+(async () => {
+  try {
+    status.textContent = 'initializing duckdb-wasm...';
+    const JSDELIVR_BUNDLES = duckdb.getJsDelivrBundles();
+    const bundle = await duckdb.selectBundle(JSDELIVR_BUNDLES);
+    const worker_url = URL.createObjectURL(new Blob([`importScripts("${bundle.mainWorker}");`], { type: 'text/javascript' }));
+    const worker = new Worker(worker_url);
+    const logger = new duckdb.ConsoleLogger();
+    const db = new duckdb.AsyncDuckDB(logger, worker);
+    await db.instantiate(bundle.mainModule, bundle.pthreadWorker);
+    URL.revokeObjectURL(worker_url);
+
+    status.textContent = 'reading parquet...';
+    const conn = await db.connect();
+    await conn.query("INSTALL httpfs; LOAD httpfs;");
+    await conn.query(`CREATE OR REPLACE VIEW beacons AS SELECT * FROM read_parquet('${PARQUET_URL}')`);
+
+    // Headline metrics
+    const summary = await conn.query(`
+      SELECT
+        COUNT(*) AS total,
+        COUNT(DISTINCT install_id) AS installs,
+        PERCENTILE_CONT(0.50) WITHIN GROUP (ORDER BY latency_ms_total) AS p50,
+        SUM(CASE WHEN status_code >= 400 THEN 1 ELSE 0 END)::DOUBLE / NULLIF(COUNT(*), 0) AS err_frac
+      FROM beacons
+    `);
+    const r = summary.toArray()[0];
+    document.getElementById('card-total').textContent = r.total.toLocaleString();
+    document.getElementById('card-installs').textContent = r.installs.toLocaleString();
+    document.getElementById('card-p50').textContent = r.p50 ? Math.round(r.p50) + ' ms' : '-';
+    document.getElementById('card-err').textContent = r.err_frac != null ? (r.err_frac * 100).toFixed(2) + ' %' : '-';
+    document.getElementById('cards').style.display = 'grid';
+
+    // Latency by model
+    const latency = (await conn.query(`
+      SELECT model,
+        COUNT(*) AS n,
+        PERCENTILE_CONT(0.50) WITHIN GROUP (ORDER BY latency_ms_total) AS p50,
+        PERCENTILE_CONT(0.95) WITHIN GROUP (ORDER BY latency_ms_total) AS p95,
+        PERCENTILE_CONT(0.99) WITHIN GROUP (ORDER BY latency_ms_total) AS p99
+      FROM beacons WHERE status_code BETWEEN 200 AND 299
+      GROUP BY model ORDER BY p99 DESC
+    `)).toArray();
+    if (latency.length) {
+      const models = latency.map(x => x.model);
+      Plotly.newPlot('chart-latency', [
+        { name: 'p50', x: models, y: latency.map(x => x.p50), type: 'bar', marker: { color: '#6ae3a8' } },
+        { name: 'p95', x: models, y: latency.map(x => x.p95), type: 'bar', marker: { color: '#6ab8e3' } },
+        { name: 'p99', x: models, y: latency.map(x => x.p99), type: 'bar', marker: { color: '#e3a86a' } },
+      ], { ...PLOT_LAYOUT, barmode: 'group', yaxis: { ...PLOT_LAYOUT.yaxis, title: 'ms' } }, PLOT_CFG);
+      document.getElementById('latency-section').style.display = 'block';
+    }
+
+    // Provider error rate
+    const errs = (await conn.query(`
+      SELECT provider,
+        COUNT(*) AS n,
+        SUM(CASE WHEN status_code >= 400 THEN 1 ELSE 0 END)::DOUBLE / NULLIF(COUNT(*), 0) AS err_frac
+      FROM beacons GROUP BY provider ORDER BY err_frac DESC
+    `)).toArray();
+    if (errs.length) {
+      Plotly.newPlot('chart-errors', [{
+        x: errs.map(x => x.provider),
+        y: errs.map(x => x.err_frac * 100),
+        type: 'bar', marker: { color: '#e36a6a' },
+      }], { ...PLOT_LAYOUT, yaxis: { ...PLOT_LAYOUT.yaxis, title: 'error rate (%)' } }, PLOT_CFG);
+      document.getElementById('errors-section').style.display = 'block';
+    }
+
+    // Cost per 1k tokens
+    const cost = (await conn.query(`
+      SELECT model,
+        SUM(cost_usd_estimate) AS spend,
+        SUM(input_tokens + output_tokens) AS tokens,
+        CASE WHEN SUM(input_tokens + output_tokens) > 0
+             THEN 1000 * SUM(cost_usd_estimate) / SUM(input_tokens + output_tokens)
+             ELSE NULL END AS usd_per_1k
+      FROM beacons WHERE cost_usd_estimate IS NOT NULL
+      GROUP BY model HAVING tokens > 0 ORDER BY usd_per_1k DESC
+    `)).toArray();
+    if (cost.length) {
+      Plotly.newPlot('chart-cost', [{
+        x: cost.map(x => x.model),
+        y: cost.map(x => x.usd_per_1k),
+        type: 'bar', marker: { color: '#6ab8e3' },
+      }], { ...PLOT_LAYOUT, yaxis: { ...PLOT_LAYOUT.yaxis, title: 'USD per 1k tokens' } }, PLOT_CFG);
+      document.getElementById('cost-section').style.display = 'block';
+    }
+
+    // Recent rows
+    const recent = (await conn.query(`
+      SELECT ts, model, provider, COALESCE(region, '') AS region, status_code,
+             latency_ms_total, input_tokens, output_tokens, cost_usd_estimate
+      FROM beacons ORDER BY ts DESC LIMIT 25
+    `)).toArray();
+    if (recent.length) {
+      const tbody = document.querySelector('#recent-table tbody');
+      tbody.innerHTML = recent.map(r => `
+        <tr>
+          <td>${new Date(r.ts).toISOString().replace('T', ' ').slice(0, 19)}</td>
+          <td>${r.model}</td>
+          <td>${r.provider}</td>
+          <td>${r.region}</td>
+          <td class="num">${r.status_code}</td>
+          <td class="num">${r.latency_ms_total}</td>
+          <td class="num">${r.input_tokens}</td>
+          <td class="num">${r.output_tokens}</td>
+          <td class="num">${r.cost_usd_estimate != null ? r.cost_usd_estimate.toFixed(5) : '-'}</td>
+        </tr>`).join('');
+      document.getElementById('recent-section').style.display = 'block';
+    }
+
+    status.style.display = 'none';
+    await conn.close();
+  } catch (e) {
+    console.error(e);
+    showError(e.message || String(e));
+  }
+})();
+</script>
+</body>
+</html>

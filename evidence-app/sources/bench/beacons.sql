@@ -12,5 +12,5 @@ SELECT
   output_tokens,
   cost_usd_estimate,
   install_id
-FROM beacons
-WHERE ts >= NOW() - INTERVAL 7 DAY;
+FROM read_parquet('https://pub-13d8fca488d741aa901d2dae08ba80bf.r2.dev/parquet/latest.parquet')
+WHERE ts >= NOW() - INTERVAL 30 DAY;

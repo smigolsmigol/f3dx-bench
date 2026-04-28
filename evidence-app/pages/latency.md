@@ -17,7 +17,7 @@ FROM beacons
 WHERE ts >= NOW() - INTERVAL 7 DAY
   AND status_code BETWEEN 200 AND 299
 GROUP BY 1, 2, 3
-HAVING n >= 50  -- k-anonymity bucket suppression
+HAVING n >= 1  -- raised to 50 once real beacon volume lands  -- k-anonymity bucket suppression
 ORDER BY hour DESC, model, region;
 ```
 
@@ -36,7 +36,7 @@ FROM beacons
 WHERE ts >= NOW() - INTERVAL 1 DAY
   AND status_code BETWEEN 200 AND 299
 GROUP BY 1
-HAVING n >= 50
+HAVING n >= 1  -- raised to 50 once real beacon volume lands
 ORDER BY p99_ms DESC;
 ```
 

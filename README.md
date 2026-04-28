@@ -23,7 +23,8 @@ Three components, one repo:
 
 2. **`worker/`** - Cloudflare Worker (Hono) at the ingest edge. POST `/v1/beacon` with single beacon or NDJSON batch. Validates schema, verifies HMAC against KV-stored install secret, rate-limits per install (60 req/min), appends validated rows to R2 as date-partitioned NDJSON. Daily scheduled job converts NDJSON to Parquet for the dashboard's duckdb-wasm reader.
 
-3. **`evidence-app/`** - Evidence.dev frontend. SQL queries against duckdb-wasm reading the public R2 parquet directly in the browser. Static deploy (Cloudflare Pages or any CDN). No backend. Charts render client-side.
+3. **`dashboard/`** - single static HTML file. Loads duckdb-wasm + Plotly from CDN, queries the public R2 parquet directly in the browser, renders summary cards + latency / errors / cost charts + recent-beacons table. Zero build step. Deploy via `wrangler pages deploy ./dashboard`. (`evidence-app/` was the original Svelte/Evidence.dev approach; abandoned due to peer-dep conflicts on Windows + Svelte 5 incompatibility in Evidence v31. Single-file HTML is simpler, faster to ship, architecturally cleaner.)
+4. **`tools/compact_ndjson_to_parquet.py`** - Python+pyarrow tool reads the per-hour NDJSON in R2, emits per-day partitioned parquet under `parquet/yyyy=*/mm=*/dd=*/all.parquet` AND a consolidated `parquet/latest.parquet` that the dashboard reads. Run ad-hoc tonight; v0.0.2 wires it as a CF scheduled cron.
 
 ## Privacy contract
 

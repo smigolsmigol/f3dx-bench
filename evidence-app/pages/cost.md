@@ -28,7 +28,7 @@ SELECT
   ROUND(1000 * AVG(cost_usd_estimate) / NULLIF(AVG(total_tokens), 0), 5) AS avg_cost_per_1k_usd
 FROM bucketed
 GROUP BY 1, 2
-HAVING n >= 50
+HAVING n >= 1  -- raised to 50 once real beacon volume lands
 ORDER BY model, token_bucket;
 ```
 

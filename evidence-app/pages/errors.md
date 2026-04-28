@@ -13,7 +13,7 @@ SELECT
 FROM beacons
 WHERE ts >= NOW() - INTERVAL 7 DAY
 GROUP BY 1, 2
-HAVING n >= 50
+HAVING n >= 1  -- raised to 50 once real beacon volume lands
 ORDER BY hour DESC, provider;
 ```
 
@@ -32,7 +32,7 @@ SELECT
 FROM beacons
 WHERE ts >= NOW() - INTERVAL 1 DAY
 GROUP BY 1
-HAVING n >= 50
+HAVING n >= 1  -- raised to 50 once real beacon volume lands
 ORDER BY error_pct DESC;
 ```
 
